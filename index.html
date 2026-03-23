@@ -19,7 +19,7 @@
   <script id="jsx-source" type="text/plain">
     const { useState, useCallback } = React;
 
-    // ─── Constants ─────────────────────────────────────────────────────────
+    // ─── Constants ──────────────────────────────────────────────────────────
     const MONTHS = ["April", "May", "June"];
     const HOURS_IN_MONTH = [720, 744, 720];
 
@@ -434,7 +434,7 @@
       const liveNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + MONTHS.reduce((s,_,i) => s + getLiveRevenue(gpu.id,i), 0), 0);
       const aopNewDcQ2   = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.aop.revenue), 0);
       const planNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.mgmt.revenue), 0);
-      const aimlAoqQ2    = sum(AIML_TOTAL_AOP);
+      const aimlAopQ2    = sum(AIML_TOTAL_AOP);
       const aimlMgmtQ2   = sum(AIML_TOTAL_MGMT);
       const anyModified  = GPU_FAMILIES.some(gpu => MONTHS.some((_,i) => {
         const ts = tranches[gpu.id][i];
@@ -468,7 +468,7 @@
           <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
             {/* KPIs */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <KpiCard label="AI/ML Q2 · Mgmt Plan" value={fmt$(aimlMgmtQ2)} sub={`AOP: ${fmt$(aimlAopQ2)}`} />
+              <KpiCard label="AI/ML Q2 · Mgmt Plan" value={fmt$(aimlMgmtQ2)} sub={`@OP: ${fmt$(aimlAopQ2)}`} />
               <KpiCard label="AI/ML Q2 · Variance" value={`+${fmt$(aimlMgmtQ2-aimlAopQ2)}`}
                 sub={`+${(((aimlMgmtQ2-aimlAopQ2)/aimlAopQ2)*100).toFixed(0)}% vs AOP`} accent="text-emerald-600" />
               <KpiCard
