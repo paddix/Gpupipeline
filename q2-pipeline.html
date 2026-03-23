@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Q2 2026 — AI/ML Pipeline Review</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useCallback } = React;
+    const {
+      BarChart, Bar, XAxis, YAxis, CartesianGrid,
+      Tooltip, Legend, ResponsiveContainer
+    } = Recharts;
+
+    // ─── Constants ──────────────────────────────────────────────────────────
+    const MONTHS = ["April", "May", "June"];
+    const HOURS_IN_MONTH = [720, 744, 720];
+
+    const calcRevenue = (gpusSold, pricePerHour, monthIndex) =>
+      (gpusSold * pricePerHour * HOURS_IN_MONTH[monthIndex]) / 1_000_000;
+
+    let _trancheCounter = 0;
+    const newId = () => `t-${++_trancheCounter}`;
+
+    // ─── Base Data ──────────────────────────────────────────────────────────
+    const GPU_FAMILIES = [
+      {
+        id: "b300-ac", name: "NVIDIA B300", badge: "AC",
+        location: "RIC (QTS)", color: "#76b900",
+        aop:  { gpusAvail:[0,672,1344],  gpusSold:[0,605,1210],  utilization:[0,90,90],   pricePerHour:[3.6,3.6,3.6] },
+        mgmt: { gpusAvail:[672,1344,1344],gpusSold:[605,1210,1210],utilization:[90,90,90], pricePerHour:[3.6,3.6,3.6] },
+      },
+      {
+        id: "b300-lc", name: "NVIDIA B300", badge: "LC",
+        location: "MKC (Patmos)", color: "#00b388",
+        aop:  { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[3.6,3.6,3.6] },
+        mgmt: { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[3.6,3.6,3.6] },
+      },
+      {
+        id: "mi350", name: "AMD MI350", badge: null,
+        location: "RIC (QTS)", color: "#ed1c24",
+        aop:  { gpusAvail:[1536,1536,1536], gpusSold:[0,461,922],    utilization:[0,30,60],  pricePerHour:[1.8,1.8,1.8] },
+        mgmt: { gpusAvail:[1536,1536,1536], gpusSold:[461,998,1382],  utilization:[30,65,90], pricePerHour:[2.0,2.0,2.0] },
+      },
+      {
+        id: "mi350-plus", name: "AMD MI350+", badge: null,
+        location: "MEM (5C)", color: "#f5a623",
+        aop:  { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[2.2,2.2,2.2] },
+        mgmt: { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[2.2,2.2,2.2] },
+      },
+    ];
+
+    GPU_FAMILIES.forEach(gpu => {
+      gpu.aop.revenue  = MONTHS.map((_,i) => calcRevenue(gpu.aop.gpusSold[i],  gpu.aop.pricePerHour[i],  i));
+      gpu.mgmt.revenue = MONTHS.map((_,i) => calcRevenue(gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i], i));
+    });
+
+    const AIML_TOTAL_AOP  = [10.4, 12.8, 14.6];
+    const AIML_TOTAL_MGMT = [12.8, 15.4, 15.5];
+
+    // ─── Tranche helpers ────────────────────────────────────────────────────
+    const makeTranche = (label, gpusAvail, gpusSold, pricePerHour) =>
+      ({ id: newId(), label, gpusAvail, gpusSold, pricePerHour });
+
+    const initTranches = () => {
+      const out = {};
+      GPU_FAMILIES.forEach(gpu => {
+        out[gpu.id] = {};
+        MONTHS.forEach((_,i) => {
+          out[gpu.id][i] = [makeTranche("Plan", gpu.mgmt.gpusAvail[i], gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i])];
+        });
+      });
+      return out;
+    };
+
+    // ─── Formatters ─────────────────────────────────────────────────────────
+    const sum = arr => arr.reduce((a,b) => a+b, 0);
+    const fmt$ = (v, d=1) => `${v<0?"-":""}$${Math.abs(v).toFixed(d)}M`;
+    const fmtPct = v => `${v}%`;
+    const varColor = v => v>0?"text-emerald-600":v<0?"text-red-500":"text-gray-400";
+    const varBg = v => v>0?"bg-emerald-50 border-emerald-200":v<0?"bg-red-50 border-red-200":"bg-gray-50 border-gray-200";
+
+    const TRANCHE_LABELS = ["Reserved","On-demand","Spot","Enterprise","SMB","Trial","Committed","Flex","Burst"];
+
+    // ─── KpiCard ────────────────────────────────────────────────────────────
+    function KpiCard({ label, value, sub, accent }) {
+      return (
+        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex flex-col gap-1 shadow-sm">
+          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
+          <span className={`text-2xl font-bold ${accent||"text-gray-900"}`}>{value}</span>
+          {sub && <span className="text-xs text-gray-500">{sub}</span>}
+        </div>
+      );
+    }
+
+    // ─── NumInput ───────────────────────────────────────────────────────────
+    function NumInput({ value, onChange, step, min, isModified }) {
+      return (
+        <input
+          type="number"
+          value={value}
+          step={step||1}
+          min={min??0}
+          onChange={e => onChange(parseFloat(e.target.value)||0)}
+          className={`w-full text-right font-mono text-xs font-semibold rounded-md px-2 py-1 border focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+            isModified ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-blue-50 border-blue-200 text-blue-800"
+          }`}
+        />
+      );
+    }
+
+    // ─── TrancheRow ─────────────────────────────────────────────────────────
+    function TrancheRow({ tranche, monthIndex, aopGpu, planGpu, onUpdate, onRemove, canRemove, color, index }) {
+      const revenue = calcRevenue(tranche.gpusSold, tranche.pricePerHour, monthIndex);
+      const derivedUtil = tranche.gpusAvail > 0
+        ? Math.min(100, Math.round((tranche.gpusSold / tranche.gpusAvail) * 100))
+        : 0;
+      const isModified =
+        tranche.label !== "Plan" ||
+        tranche.gpusSold !== planGpu.gpusSold[monthIndex] ||
+        tranche.pricePerHour !== planGpu.pricePerHour[monthIndex] ||
+        tranche.gpusAvail !== planGpu.gpusAvail[monthIndex];
+
+      const [showSuggestions, setShowSuggestions] = useState(false);
+
+      return (
+        <div className={`rounded-lg border px-3 py-2.5 ${isModified ? "border-amber-200 bg-amber-50/40" : "border-gray-100 bg-gray-50/50"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0 relative">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color, opacity: 0.4 + index * 0.3 }} />
+              <input
+                type="text"
+                value={tranche.label}
+                onChange={e => onUpdate("label", e.target.value)}
+                placeholder="Tranche name…"
+                className="text-xs font-semibold text-gray-700 bg-transparent border-0 border-b border-dashed border-gray-300 focus:outline-none focus:border-blue-400 w-28 min-w-0"
+              />
+              <div className="relative">
+                <button
+                  onClick={() => setShowSuggestions(s => !s)}
+                  className="text-gray-300 hover:text-gray-500 text-xs px-1"
+                >▾</button>
+                {showSuggestions && (
+                  <div className="absolute left-0 top-5 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-32">
+                    {TRANCHE_LABELS.map(l => (
+                      <button key={l} onClick={() => { onUpdate("label", l); setShowSuggestions(false); }}
+                        className="block w-full text-left px-3 py-1 text-xs text-gray-600 hover:bg-gray-50">
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold font-mono ${revenue > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                {fmt$(revenue)}
+              </span>
+              {canRemove && (
+                <button onClick={onRemove} className="text-gray-300 hover:text-red-400 transition-colors text-sm leading-none px-1" title="Remove tranche">×</button>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {/* GPUs Available */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-400">GPUs Avail</span>
+              <NumInput value={tranche.gpusAvail} onChange={v => onUpdate("gpusAvail", Math.round(v))} step={1}
+                isModified={tranche.gpusAvail !== planGpu.gpusAvail[monthIndex]} />
+              <span className="text-xs text-gray-300">AOP: {aopGpu.gpusAvail[monthIndex].toLocaleString()}</span>
+            </div>
+            {/* GPUs Sold */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-400">GPUs Sold</span>
+              <NumInput value={tranche.gpusSold} onChange={v => onUpdate("gpusSold", Math.round(v))} step={1}
+                isModified={tranche.gpusSold !== planGpu.gpusSold[monthIndex]} />
+              <span className="text-xs text-gray-300">{fmtPct(derivedUtil)} util · AOP: {aopGpu.gpusSold[monthIndex].toLocaleString()}</span>
+            </div>
+            {/* Price / Hour */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-400">$/hr</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-400">$</span>
+                <NumInput value={tranche.pricePerHour} onChange={v => onUpdate("pricePerHour", v)} step={0.1}
+                  isModified={tranche.pricePerHour !== planGpu.pricePerHour[monthIndex]} />
+              </div>
+              <span className="text-xs text-gray-300">AOP: ${aopGpu.pricePerHour[monthIndex].toFixed(1)}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── GpuFamilyCard ──────────────────────────────────────────────────────
+    function GpuFamilyCard({ gpu, monthIndex, tranches, onAddTranche, onUpdateTranche, onRemoveTranche, onResetTranches }) {
+      const monthTranches = tranches[gpu.id][monthIndex];
+      const liveRevenue   = sum(monthTranches.map(t => calcRevenue(t.gpusSold, t.pricePerHour, monthIndex)));
+      const aopRevenue    = gpu.aop.revenue[monthIndex];
+      const planRevenue   = gpu.mgmt.revenue[monthIndex];
+      const revenueVsAop  = liveRevenue - aopRevenue;
+      const liveGpusSold  = sum(monthTranches.map(t => t.gpusSold));
+      const liveGpusAvail = sum(monthTranches.map(t => t.gpusAvail));
+      const derivedUtil   = liveGpusAvail > 0 ? Math.round((liveGpusSold / liveGpusAvail) * 100) : 0;
+      const isMultiTranche = monthTranches.length > 1;
+      const isModified = isMultiTranche || monthTranches.some(t =>
+        t.gpusSold !== gpu.mgmt.gpusSold[monthIndex] ||
+        t.pricePerHour !== gpu.mgmt.pricePerHour[monthIndex] ||
+        t.gpusAvail !== gpu.mgmt.gpusAvail[monthIndex]
+      );
+      const planIsZero = gpu.mgmt.gpusSold[monthIndex] === 0 && gpu.mgmt.gpusAvail[monthIndex] === 0;
+      const liveIsZero = liveRevenue === 0 && !isModified;
+
+      return (
+        <div className="bg-white rounded-xl border shadow-sm overflow-hidden" style={{ borderColor: gpu.color + "40" }}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `2px solid ${gpu.color}` }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-gray-900">{gpu.name}</span>
+              {gpu.badge && (
+                <span className="text-xs px-1.5 py-0.5 rounded font-mono font-semibold text-white" style={{ backgroundColor: gpu.color }}>
+                  {gpu.badge}
+                </span>
+              )}
+              {isMultiTranche && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold border"
+                      style={{ color: gpu.color, borderColor: gpu.color+"60", backgroundColor: gpu.color+"12" }}>
+                  {monthTranches.length} tranches
+                </span>
+              )}
+              {isModified && !isMultiTranche && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold">modified</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-400">{gpu.location}</span>
+              {isModified && (
+                <button onClick={() => onResetTranches(gpu.id, monthIndex)} className="text-xs text-gray-400 hover:text-gray-700 underline">reset</button>
+              )}
+            </div>
+          </div>
+
+          <div className="px-4 py-3 space-y-3">
+            <div className={`rounded-lg border px-3 py-2 ${varBg(revenueVsAop)}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-600">
+                  Revenue {isMultiTranche ? `(${monthTranches.length} tranches)` : "(live)"}
+                </span>
+                <span className={`text-base font-bold ${varColor(revenueVsAop)}`}>{fmt$(liveRevenue)}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400 flex-wrap">
+                <span>AOP {fmt$(aopRevenue)} · Plan {fmt$(planRevenue)}</span>
+                <span className={`font-semibold ${varColor(revenueVsAop)}`}>
+                  {revenueVsAop >= 0 ? "+" : ""}{fmt$(revenueVsAop)} vs AOP
+                </span>
+                {isMultiTranche && (
+                  <span className="text-gray-400">· {liveGpusSold.toLocaleString()} GPUs · {fmtPct(derivedUtil)} util (agg)</span>
+                )}
+              </div>
+            </div>
+
+            {liveIsZero && planIsZero && !isModified ? (
+              <div className="text-center text-xs text-gray-400 italic py-3">
+                No activity in {MONTHS[monthIndex]} — ramps in H2
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {monthTranches.map((tranche, idx) => (
+                  <TrancheRow
+                    key={tranche.id}
+                    tranche={tranche}
+                    monthIndex={monthIndex}
+                    aopGpu={gpu.aop}
+                    planGpu={gpu.mgmt}
+                    onUpdate={(field, val) => onUpdateTranche(gpu.id, monthIndex, tranche.id, field, val)}
+                    onRemove={() => onRemoveTranche(gpu.id, monthIndex, tranche.id)}
+                    canRemove={monthTranches.length > 1}
+                    color={gpu.color}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => onAddTranche(gpu.id, monthIndex)}
+              className="w-full text-xs py-1.5 rounded-lg border border-dashed border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-all flex items-center justify-center gap-1"
+            >
+              <span className="text-sm leading-none">+</span> Add tranche
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Chart data ─────────────────────────────────────────────────────────
+    function buildChartData(tranches) {
+      return MONTHS.map((month, i) => {
+        const entry = { month };
+        GPU_FAMILIES.forEach(gpu => {
+          entry[`${gpu.id}_aop`]  = parseFloat(gpu.aop.revenue[i].toFixed(2));
+          entry[`${gpu.id}_live`] = parseFloat(sum(tranches[gpu.id][i].map(t => calcRevenue(t.gpusSold, t.pricePerHour, i))).toFixed(2));
+        });
+        return entry;
+      });
+    }
+
+    // ─── Main App ────────────────────────────────────────────────────────────
+    function App() {
+      const [activeMonth, setActiveMonth] = useState(0);
+      const [tranches, setTranches] = useState(initTranches);
+
+      const addTranche = useCallback((gpuId, monthIndex) => {
+        const gpu = GPU_FAMILIES.find(g => g.id === gpuId);
+        setTranches(prev => ({
+          ...prev,
+          [gpuId]: {
+            ...prev[gpuId],
+            [monthIndex]: [...prev[gpuId][monthIndex], makeTranche(`Tranche ${prev[gpuId][monthIndex].length + 1}`, 0, 0, gpu.mgmt.pricePerHour[monthIndex])],
+          },
+        }));
+      }, []);
+
+      const removeTranche = useCallback((gpuId, monthIndex, trancheId) => {
+        setTranches(prev => {
+          const updated = prev[gpuId][monthIndex].filter(t => t.id !== trancheId);
+          if (updated.length === 0) return prev;
+          return { ...prev, [gpuId]: { ...prev[gpuId], [monthIndex]: updated } };
+        });
+      }, []);
+
+      const updateTranche = useCallback((gpuId, monthIndex, trancheId, field, value) => {
+        setTranches(prev => ({
+          ...prev,
+          [gpuId]: {
+            ...prev[gpuId],
+            [monthIndex]: prev[gpuId][monthIndex].map(t => t.id === trancheId ? { ...t, [field]: value } : t),
+          },
+        }));
+      }, []);
+
+      const resetTranches = useCallback((gpuId, monthIndex) => {
+        const gpu = GPU_FAMILIES.find(g => g.id === gpuId);
+        setTranches(prev => ({
+          ...prev,
+          [gpuId]: {
+            ...prev[gpuId],
+            [monthIndex]: [makeTranche("Plan", gpu.mgmt.gpusAvail[monthIndex], gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex])],
+          },
+        }));
+      }, []);
+
+      const resetAll = useCallback(() => setTranches(initTranches()), []);
+
+      const getLiveRevenue = (gpuId, monthIndex) =>
+        sum(tranches[gpuId][monthIndex].map(t => calcRevenue(t.gpusSold, t.pricePerHour, monthIndex)));
+
+      const liveNewDcRevMonth = GPU_FAMILIES.reduce((acc, gpu) => acc + getLiveRevenue(gpu.id, activeMonth), 0);
+      const aopNewDcRevMonth  = GPU_FAMILIES.reduce((acc, gpu) => acc + gpu.aop.revenue[activeMonth], 0);
+      const liveNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + MONTHS.reduce((s,_,i) => s + getLiveRevenue(gpu.id,i), 0), 0);
+      const aopNewDcQ2   = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.aop.revenue), 0);
+      const planNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.mgmt.revenue), 0);
+      const aimlAopQ2    = sum(AIML_TOTAL_AOP);
+      const aimlMgmtQ2   = sum(AIML_TOTAL_MGMT);
+      const anyModified  = GPU_FAMILIES.some(gpu => MONTHS.some((_,i) => {
+        const ts = tranches[gpu.id][i];
+        return ts.length > 1 || ts[0].gpusSold !== gpu.mgmt.gpusSold[i] ||
+          ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].gpusAvail !== gpu.mgmt.gpusAvail[i];
+      }));
+      const chartData = buildChartData(tranches);
+
+      return (
+        <div className="min-h-screen bg-gray-50">
+          {/* Top bar */}
+          <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Q2 2026 — AI/ML Pipeline Review</h1>
+                <p className="text-sm text-gray-500 mt-0.5">GPU Family Breakdown · Management vs. AOP · Tranche Scenarios</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {anyModified && (
+                  <button onClick={resetAll} className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
+                    ↺ Reset all to plan
+                  </button>
+                )}
+                <span className="text-xs bg-blue-50 text-blue-700 font-semibold px-3 py-1.5 rounded-full border border-blue-200">
+                  Apr · May · Jun 2026
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+            {/* KPIs */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <KpiCard label="AI/ML Q2 · Mgmt Plan" value={fmt$(aimlMgmtQ2)} sub={`AOP: ${fmt$(aimlAopQ2)}`} />
+              <KpiCard label="AI/ML Q2 · Variance" value={`+${fmt$(aimlMgmtQ2-aimlAopQ2)}`}
+                sub={`+${(((aimlMgmtQ2-aimlAopQ2)/aimlAopQ2)*100).toFixed(0)}% vs AOP`} accent="text-emerald-600" />
+              <KpiCard
+                label={anyModified ? "New DC Revenue · Live Q2" : "New DC Revenue · Plan Q2"}
+                value={fmt$(liveNewDcQ2)}
+                sub={anyModified ? `Plan ${fmt$(planNewDcQ2)} · AOP ${fmt$(aopNewDcQ2)}` : `AOP was ${fmt$(aopNewDcQ2)}`}
+                accent={anyModified && liveNewDcQ2 !== planNewDcQ2 ? "text-amber-600" : undefined}
+              />
+              <KpiCard
+                label="New DC Uplift vs AOP"
+                value={`${liveNewDcQ2-aopNewDcQ2>=0?"+":""}${fmt$(liveNewDcQ2-aopNewDcQ2)}`}
+                sub={aopNewDcQ2>0 ? `${(((liveNewDcQ2-aopNewDcQ2)/aopNewDcQ2)*100).toFixed(0)}% above AOP` : "vs AOP"}
+                accent={varColor(liveNewDcQ2-aopNewDcQ2)}
+              />
+            </div>
+
+            {/* Chart */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-bold text-gray-800">Revenue by GPU Family · April – June</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  $M · New DC deployments · Tranches aggregated
+                  {anyModified && <span className="ml-2 text-amber-500 font-semibold">· showing live scenario</span>}
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={chartData} barGap={4} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#6b7280" }} />
+                  <YAxis tickFormatter={v => `$${v}M`} tick={{ fontSize: 11, fill: "#9ca3af" }} width={45} />
+                  <Tooltip formatter={(v, name) => [`$${v.toFixed(2)}M`, name]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                  {GPU_FAMILIES.filter(g => sum(g.aop.revenue) > 0).map(gpu => (
+                    <Bar key={`${gpu.id}_aop`} dataKey={`${gpu.id}_aop`}
+                      name={`${gpu.name}${gpu.badge?` ${gpu.badge}`:""} · AOP`}
+                      fill={gpu.color+"50"} radius={[3,3,0,0]} />
+                  ))}
+                  {GPU_FAMILIES.map(gpu => (
+                    <Bar key={`${gpu.id}_live`} dataKey={`${gpu.id}_live`}
+                      name={`${gpu.name}${gpu.badge?` ${gpu.badge}`:""} · ${anyModified?"Live":"Mgmt"}`}
+                      fill={gpu.color} radius={[3,3,0,0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Month Tabs */}
+            <div>
+              <div className="flex gap-2 mb-4 items-center flex-wrap">
+                {MONTHS.map((month, i) => (
+                  <button key={month} onClick={() => setActiveMonth(i)}
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      activeMonth === i ? "bg-gray-900 text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
+                    }`}>{month}</button>
+                ))}
+                <div className="ml-auto flex items-center gap-4 text-xs text-gray-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-5 h-3.5 rounded bg-blue-50 border border-blue-200 inline-block" /> Editable
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-5 h-3.5 rounded bg-amber-50 border border-amber-200 inline-block" /> Modified
+                  </span>
+                </div>
+              </div>
+
+              {/* Month summary */}
+              <div className="bg-white rounded-xl border border-gray-100 px-5 py-3 mb-4 flex flex-wrap items-center gap-6 shadow-sm">
+                <div className="text-xs text-gray-400 font-medium uppercase tracking-wide">{MONTHS[activeMonth]}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">AI/ML Total:</span>
+                  <span className="text-sm font-bold text-gray-800">{fmt$(AIML_TOTAL_MGMT[activeMonth])}</span>
+                  <span className={`text-xs font-semibold ${varColor(AIML_TOTAL_MGMT[activeMonth]-AIML_TOTAL_AOP[activeMonth])}`}>
+                    ({AIML_TOTAL_MGMT[activeMonth]-AIML_TOTAL_AOP[activeMonth]>=0?"+":""}{fmt$(AIML_TOTAL_MGMT[activeMonth]-AIML_TOTAL_AOP[activeMonth])} vs AOP)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">New DC GPUs (live):</span>
+                  <span className={`text-sm font-bold ${anyModified?"text-amber-700":"text-gray-800"}`}>{fmt$(liveNewDcRevMonth)}</span>
+                  <span className={`text-xs font-semibold ${varColor(liveNewDcRevMonth-aopNewDcRevMonth)}`}>
+                    ({liveNewDcRevMonth-aopNewDcRevMonth>=0?"+":""}{fmt$(liveNewDcRevMonth-aopNewDcRevMonth)} vs AOP)
+                  </span>
+                </div>
+              </div>
+
+              {/* GPU Cards */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {GPU_FAMILIES.map(gpu => (
+                  <GpuFamilyCard
+                    key={gpu.id}
+                    gpu={gpu}
+                    monthIndex={activeMonth}
+                    tranches={tranches}
+                    onAddTranche={addTranche}
+                    onUpdateTranche={updateTranche}
+                    onRemoveTranche={removeTranche}
+                    onResetTranches={resetTranches}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center pb-4">
+              DigitalOcean Internal · AI/ML Targets 2026 · Revenue = GPUs Sold × $/hr × Hours in Month · Figures in $M
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
