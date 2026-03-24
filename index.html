@@ -33,25 +33,25 @@
     const GPU_FAMILIES = [
       {
         id: "b300-ac", name: "NVIDIA B300", badge: "AC",
-        location: "RIC (QTS)", color: "#76b900",
+        location: "RIC (QTS)", color: "#76b900", inventoryCap: 1344,
         aop:  { gpusAvail:[0,672,1344],  gpusSold:[0,605,1210],  utilization:[0,90,90],   pricePerHour:[3.6,3.6,3.6] },
         mgmt: { gpusAvail:[672,1344,1344],gpusSold:[605,1210,1210],utilization:[90,90,90], pricePerHour:[3.6,3.6,3.6] },
       },
       {
         id: "b300-lc", name: "NVIDIA B300", badge: "LC",
-        location: "MKC (Patmos)", color: "#00b388",
+        location: "MKC (Patmos)", color: "#00b388", inventoryCap: 4096,
         aop:  { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[3.6,3.6,3.6] },
         mgmt: { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[3.6,3.6,3.6] },
       },
       {
         id: "mi350", name: "AMD MI350", badge: null,
-        location: "RIC (QTS)", color: "#ed1c24",
+        location: "RIC (QTS)", color: "#ed1c24", inventoryCap: 1536,
         aop:  { gpusAvail:[1536,1536,1536], gpusSold:[0,461,922],    utilization:[0,30,60],  pricePerHour:[1.8,1.8,1.8] },
         mgmt: { gpusAvail:[1536,1536,1536], gpusSold:[461,998,1382],  utilization:[30,65,90], pricePerHour:[2.0,2.0,2.0] },
       },
       {
         id: "mi350-plus", name: "AMD MI350+", badge: null,
-        location: "MEM (5C)", color: "#f5a623",
+        location: "MEM (5C)", color: "#f5a623", inventoryCap: 0,
         aop:  { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[2.2,2.2,2.2] },
         mgmt: { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[2.2,2.2,2.2] },
       },
@@ -101,7 +101,7 @@
     }
 
     // ─── NumInput ───────────────────────────────────────────────────────────
-    function NumInput({ value, onChange, step, min, isModified }) {
+    function NumInput({ value, onChange, step, min, max, isModified }) {
       const [local, setLocal] = useState(() => String(value));
       useEffect(() => { setLocal(String(value)); }, [value]);
       return (
@@ -110,6 +110,7 @@
           value={local}
           step={step||1}
           min={min??0}
+          max={max}
           onChange={e => {
             setLocal(e.target.value);
             const n = parseFloat(e.target.value);
@@ -117,7 +118,8 @@
           }}
           onBlur={() => {
             const n = parseFloat(local);
-            const final = isNaN(n) ? 0 : Math.max(min??0, n);
+            let final = isNaN(n) ? 0 : Math.max(min??0, n);
+            if (max !== undefined) final = Math.min(max, final);
             setLocal(String(final));
             onChange(final);
           }}
@@ -129,7 +131,7 @@
     }
 
     // ─── TrancheRow ─────────────────────────────────────────────────────────
-    function TrancheRow({ tranche, monthIndex, aopGpu, planGpu, onUpdate, onRemove, canRemove, color, index }) {
+    function TrancheRow({ tranche, monthIndex, aopGpu, planGpu, onUpdate, onRemove, canRemove, color, index, maxGpusAvail, maxGpusSold }) {
       const revenue = calcRevenue(tranche.gpusSold, tranche.pricePerHour, monthIndex);
       const derivedUtil = tranche.gpusAvail > 0
         ? Math.min(100, Math.round((tranche.gpusSold / tranche.gpusAvail) * 100))
@@ -185,14 +187,14 @@
             <div className="flex flex-col gap-1">
               <span className="text-xs text-gray-400">GPUs Avail</span>
               <NumInput value={tranche.gpusAvail} onChange={v => onUpdate("gpusAvail", Math.round(v))} step={1}
-                isModified={tranche.gpusAvail !== planGpu.gpusAvail[monthIndex]} />
+                max={maxGpusAvail} isModified={tranche.gpusAvail !== planGpu.gpusAvail[monthIndex]} />
               <span className="text-xs text-gray-300">AOP: {aopGpu.gpusAvail[monthIndex].toLocaleString()}</span>
             </div>
             {/* GPUs Sold */}
             <div className="flex flex-col gap-1">
               <span className="text-xs text-gray-400">GPUs Sold</span>
               <NumInput value={tranche.gpusSold} onChange={v => onUpdate("gpusSold", Math.round(v))} step={1}
-                isModified={tranche.gpusSold !== planGpu.gpusSold[monthIndex]} />
+                max={maxGpusSold} isModified={tranche.gpusSold !== planGpu.gpusSold[monthIndex]} />
               <span className="text-xs text-gray-300">{fmtPct(derivedUtil)} util · AOP: {aopGpu.gpusSold[monthIndex].toLocaleString()}</span>
             </div>
             {/* Price / Hour */}
@@ -220,6 +222,10 @@
       const liveGpusSold  = sum(monthTranches.map(t => t.gpusSold));
       const liveGpusAvail = sum(monthTranches.map(t => t.gpusAvail));
       const derivedUtil   = liveGpusAvail > 0 ? Math.round((liveGpusSold / liveGpusAvail) * 100) : 0;
+      const cap = gpu.inventoryCap;
+      const inventoryLeft = cap > 0 ? cap - liveGpusSold : null;
+      const inventoryOverCap = cap > 0 && liveGpusSold > cap;
+      const availOverCap = cap > 0 && liveGpusAvail > cap;
       const isMultiTranche = monthTranches.length > 1;
       const isModified = isMultiTranche || monthTranches.some(t =>
         t.gpusSold !== gpu.mgmt.gpusSold[monthIndex] ||
@@ -289,6 +295,14 @@
                   <span className="text-gray-400">· {liveGpusSold.toLocaleString()} GPUs · {fmtPct(derivedUtil)} util (agg)</span>
                 )}
               </div>
+              {inventoryLeft !== null && (
+                <div className={`flex items-center justify-between mt-1.5 pt-1.5 border-t ${inventoryOverCap ? "border-red-200" : "border-gray-100"}`}>
+                  <span className="text-xs text-gray-400">Inventory ({cap.toLocaleString()} total)</span>
+                  <span className={`text-xs font-semibold font-mono ${inventoryOverCap ? "text-red-600" : inventoryLeft < cap * 0.1 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {inventoryOverCap ? "⚠ " : ""}{inventoryLeft.toLocaleString()} left
+                  </span>
+                </div>
+              )}
             </div>
 
             {liveIsZero && planIsZero && !isModified ? (
@@ -297,20 +311,26 @@
               </div>
             ) : (
               <div className="space-y-2">
-                {monthTranches.map((tranche, idx) => (
-                  <TrancheRow
-                    key={tranche.id}
-                    tranche={tranche}
-                    monthIndex={monthIndex}
-                    aopGpu={gpu.aop}
-                    planGpu={gpu.mgmt}
-                    onUpdate={(field, val) => onUpdateTranche(gpu.id, monthIndex, tranche.id, field, val)}
-                    onRemove={() => onRemoveTranche(gpu.id, monthIndex, tranche.id)}
-                    canRemove={monthTranches.length > 1}
-                    color={gpu.color}
-                    index={idx}
-                  />
-                ))}
+                {monthTranches.map((tranche, idx) => {
+                  const otherSold  = cap > 0 ? sum(monthTranches.filter((_, i) => i !== idx).map(t => t.gpusSold))  : undefined;
+                  const otherAvail = cap > 0 ? sum(monthTranches.filter((_, i) => i !== idx).map(t => t.gpusAvail)) : undefined;
+                  return (
+                    <TrancheRow
+                      key={tranche.id}
+                      tranche={tranche}
+                      monthIndex={monthIndex}
+                      aopGpu={gpu.aop}
+                      planGpu={gpu.mgmt}
+                      onUpdate={(field, val) => onUpdateTranche(gpu.id, monthIndex, tranche.id, field, val)}
+                      onRemove={() => onRemoveTranche(gpu.id, monthIndex, tranche.id)}
+                      canRemove={monthTranches.length > 1}
+                      color={gpu.color}
+                      index={idx}
+                      maxGpusSold={cap > 0 ? cap - otherSold : undefined}
+                      maxGpusAvail={cap > 0 ? cap - otherAvail : undefined}
+                    />
+                  );
+                })}
               </div>
             )}
 
