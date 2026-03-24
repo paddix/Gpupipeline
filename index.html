@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Q2 2026 â AI/ML Pipeline Review</title>
+  <title>Q2 2026 — AI/ML Pipeline Review</title>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.9/babel.min.js"></script>
@@ -19,7 +19,7 @@
   <script id="jsx-source" type="text/plain">
     const { useState, useCallback, useEffect } = React;
 
-    // âââ Constants ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── Constants ──────────────────────────────────────────────────────────
     const MONTHS = ["April", "May", "June"];
     const HOURS_IN_MONTH = [720, 744, 720];
 
@@ -29,7 +29,7 @@
     let _trancheCounter = 0;
     const newId = () => `t-${++_trancheCounter}`;
 
-    // âââ Base Data ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── Base Data ──────────────────────────────────────────────────────────
     const GPU_FAMILIES = [
       {
         id: "b300-ac", name: "NVIDIA B300", badge: "AC",
@@ -65,7 +65,7 @@
     const AIML_TOTAL_AOP  = [10.4, 12.8, 14.6];
     const AIML_TOTAL_MGMT = [12.8, 15.4, 15.5];
 
-    // âââ Tranche helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── Tranche helpers ────────────────────────────────────────────────────
     const makeTranche = (label, gpusAvail, gpusSold, pricePerHour) =>
       ({ id: newId(), label, gpusAvail, gpusSold, pricePerHour });
 
@@ -80,7 +80,7 @@
       return out;
     };
 
-    // âââ Formatters âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── Formatters ─────────────────────────────────────────────────────────
     const sum = arr => arr.reduce((a,b) => a+b, 0);
     const fmt$ = (v, d=1) => `${v<0?"-":""}$${Math.abs(v).toFixed(d)}M`;
     const fmtPct = v => `${v}%`;
@@ -89,7 +89,7 @@
 
     const TRANCHE_LABELS = ["Reserved","On-demand","Spot","Enterprise","SMB","Trial","Committed","Flex","Burst"];
 
-    // âââ KpiCard ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── KpiCard ────────────────────────────────────────────────────────────
     function KpiCard({ label, value, sub, accent }) {
       return (
         <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex flex-col gap-1 shadow-sm">
@@ -100,7 +100,7 @@
       );
     }
 
-    // âââ NumInput âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── NumInput ───────────────────────────────────────────────────────────
     function NumInput({ value, onChange, step, min, isModified }) {
       const [local, setLocal] = useState(() => String(value));
       useEffect(() => { setLocal(String(value)); }, [value]);
@@ -128,7 +128,7 @@
       );
     }
 
-    // âââ TrancheRow âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── TrancheRow ─────────────────────────────────────────────────────────
     function TrancheRow({ tranche, monthIndex, aopGpu, planGpu, onUpdate, onRemove, canRemove, color, index }) {
       const revenue = calcRevenue(tranche.gpusSold, tranche.pricePerHour, monthIndex);
       const derivedUtil = tranche.gpusAvail > 0
@@ -151,14 +151,14 @@
                 type="text"
                 value={tranche.label}
                 onChange={e => onUpdate("label", e.target.value)}
-                placeholder="Tranche nameâ¦"
+                placeholder="Tranche name…"
                 className="text-xs font-semibold text-gray-700 bg-transparent border-0 border-b border-dashed border-gray-300 focus:outline-none focus:border-blue-400 w-28 min-w-0"
               />
               <div className="relative">
                 <button
                   onClick={() => setShowSuggestions(s => !s)}
                   className="text-gray-300 hover:text-gray-500 text-xs px-1"
-                >â¾</button>
+                >▾</button>
                 {showSuggestions && (
                   <div className="absolute left-0 top-5 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-32">
                     {TRANCHE_LABELS.map(l => (
@@ -176,7 +176,7 @@
                 {fmt$(revenue)}
               </span>
               {canRemove && (
-                <button onClick={onRemove} className="text-gray-300 hover:text-red-400 transition-colors text-sm leading-none px-1" title="Remove tranche">Ã</button>
+                <button onClick={onRemove} className="text-gray-300 hover:text-red-400 transition-colors text-sm leading-none px-1" title="Remove tranche">×</button>
               )}
             </div>
           </div>
@@ -193,7 +193,7 @@
               <span className="text-xs text-gray-400">GPUs Sold</span>
               <NumInput value={tranche.gpusSold} onChange={v => onUpdate("gpusSold", Math.round(v))} step={1}
                 isModified={tranche.gpusSold !== planGpu.gpusSold[monthIndex]} />
-              <span className="text-xs text-gray-300">{fmtPct(derivedUtil)} util Â· AOP: {aopGpu.gpusSold[monthIndex].toLocaleString()}</span>
+              <span className="text-xs text-gray-300">{fmtPct(derivedUtil)} util · AOP: {aopGpu.gpusSold[monthIndex].toLocaleString()}</span>
             </div>
             {/* Price / Hour */}
             <div className="flex flex-col gap-1">
@@ -210,8 +210,8 @@
       );
     }
 
-    // âââ GpuFamilyCard ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    function GpuFamilyCard({ gpu, monthIndex, tranches, onAddTranche, onUpdateTranche, onRemoveTranche, onResetTranches }) {
+    // ─── GpuFamilyCard ──────────────────────────────────────────────────────
+    function GpuFamilyCard({ gpu, monthIndex, tranches, onAddTranche, onUpdateTranche, onRemoveTranche, onResetTranches, onUpdateGpu, gpuLastUpdated, gpuHasPending }) {
       const monthTranches = tranches[gpu.id][monthIndex];
       const liveRevenue   = sum(monthTranches.map(t => calcRevenue(t.gpusSold, t.pricePerHour, monthIndex)));
       const aopRevenue    = gpu.aop.revenue[monthIndex];
@@ -249,11 +249,26 @@
                 <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-semibold">modified</span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">{gpu.location}</span>
               {isModified && (
                 <button onClick={() => onResetTranches(gpu.id, monthIndex)} className="text-xs text-gray-400 hover:text-gray-700 underline">reset</button>
               )}
+              <div className="flex flex-col items-end gap-0.5">
+                <button
+                  onClick={() => onUpdateGpu(gpu.id)}
+                  className={`text-xs font-semibold text-white rounded-md px-2.5 py-1 transition-colors shadow-sm flex items-center gap-1 ${
+                    gpuHasPending ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  <span>↻</span> Update{gpuHasPending ? " ●" : ""}
+                </button>
+                {gpuLastUpdated && (
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {gpuLastUpdated.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -266,19 +281,19 @@
                 <span className={`text-base font-bold ${varColor(revenueVsAop)}`}>{fmt$(liveRevenue)}</span>
               </div>
               <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400 flex-wrap">
-                <span>AOP {fmt$(aopRevenue)} Â· Plan {fmt$(planRevenue)}</span>
+                <span>AOP {fmt$(aopRevenue)} · Plan {fmt$(planRevenue)}</span>
                 <span className={`font-semibold ${varColor(revenueVsAop)}`}>
                   {revenueVsAop >= 0 ? "+" : ""}{fmt$(revenueVsAop)} vs AOP
                 </span>
                 {isMultiTranche && (
-                  <span className="text-gray-400">Â· {liveGpusSold.toLocaleString()} GPUs Â· {fmtPct(derivedUtil)} util (agg)</span>
+                  <span className="text-gray-400">· {liveGpusSold.toLocaleString()} GPUs · {fmtPct(derivedUtil)} util (agg)</span>
                 )}
               </div>
             </div>
 
             {liveIsZero && planIsZero && !isModified ? (
               <div className="text-center text-xs text-gray-400 italic py-3">
-                No activity in {MONTHS[monthIndex]} â ramps in H2
+                No activity in {MONTHS[monthIndex]} — ramps in H2
               </div>
             ) : (
               <div className="space-y-2">
@@ -310,7 +325,7 @@
       );
     }
 
-    // âââ SVG Bar Chart âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── SVG Bar Chart ───────────────────────────────────────────────────────
     function SimpleBarChart({ data, anyModified }) {
       const [tip, setTip] = useState(null);
       const W = 560, H = 220, ml = 52, mr = 16, mt = 8, mb = 32;
@@ -318,8 +333,8 @@
 
       const aopFams = GPU_FAMILIES.filter(g => sum(g.aop.revenue) > 0);
       const series = [
-        ...aopFams.map(g => ({ key: `${g.id}_aop`, label: `${g.name}${g.badge?' '+g.badge:''} Â· AOP`, color: g.color+'55' })),
-        ...GPU_FAMILIES.map(g => ({ key: `${g.id}_live`, label: `${g.name}${g.badge?' '+g.badge:''} Â· ${anyModified?'Live':'Mgmt'}`, color: g.color })),
+        ...aopFams.map(g => ({ key: `${g.id}_aop`, label: `${g.name}${g.badge?' '+g.badge:''} · AOP`, color: g.color+'55' })),
+        ...GPU_FAMILIES.map(g => ({ key: `${g.id}_live`, label: `${g.name}${g.badge?' '+g.badge:''} · ${anyModified?'Live':'Mgmt'}`, color: g.color })),
       ];
 
       const maxV = Math.max(...data.flatMap(d => series.map(s => d[s.key]||0)), 0.5);
@@ -379,7 +394,7 @@
       );
     }
 
-    // âââ Chart data âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── Chart data ─────────────────────────────────────────────────────────
     function buildChartData(tranches) {
       return MONTHS.map((month, i) => {
         const entry = { month };
@@ -391,11 +406,12 @@
       });
     }
 
-    // âââ Main App ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─── Main App ────────────────────────────────────────────────────────────
     function App() {
       const [activeMonth, setActiveMonth] = useState(0);
       const [tranches, setTranches] = useState(initTranches);
       const [lastUpdated, setLastUpdated] = useState(null);
+      const [gpuLastUpdated, setGpuLastUpdated] = useState({});
 
       const addTranche = useCallback((gpuId, monthIndex) => {
         const gpu = GPU_FAMILIES.find(g => g.id === gpuId);
@@ -428,46 +444,48 @@
 
       const resetTranches = useCallback((gpuId, monthIndex) => {
         const gpu = GPU_FAMILIES.find(g => g.id === gpuId);
-        setTranches(prev => ({
-          ...prev,
-          [gpuId]: {
-            ...prev[gpuId],
-            [monthIndex]: [makeTranche("Plan", gpu.mgmt.gpusAvail[monthIndex], gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex])],
-          },
-        }));
+        const planTranche = makeTranche("Plan", gpu.mgmt.gpusAvail[monthIndex], gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex]);
+        setTranches(prev => ({ ...prev, [gpuId]: { ...prev[gpuId], [monthIndex]: [planTranche] } }));
       }, []);
 
-      const resetAll = useCallback(() => { setTranches(initTranches()); setLastUpdated(null); }, []);
-
-      const updateForecast = useCallback(() => {
-        setTranches(prev => {
-          const fresh = {};
-          GPU_FAMILIES.forEach(gpu => {
-            fresh[gpu.id] = {};
-            MONTHS.forEach((_, i) => {
-              fresh[gpu.id][i] = prev[gpu.id][i].map(t => ({ ...t }));
-            });
-          });
-          return fresh;
-        });
-        setLastUpdated(new Date());
+      const resetAll = useCallback(() => {
+        setTranches(initTranches());
+        setLastUpdated(null);
+        setGpuLastUpdated({});
       }, []);
 
+      // Update buttons stamp a timestamp; KPIs are always live from tranches
+      const updateForecast = useCallback(() => { setLastUpdated(new Date()); }, []);
+      const updateGpu = useCallback((gpuId) => {
+        setGpuLastUpdated(prev => ({ ...prev, [gpuId]: new Date() }));
+      }, []);
+
+      // All KPIs compute live from tranches — always current, no commit step needed
       const getLiveRevenue = (gpuId, monthIndex) =>
         sum(tranches[gpuId][monthIndex].map(t => calcRevenue(t.gpusSold, t.pricePerHour, monthIndex)));
 
       const liveNewDcRevMonth = GPU_FAMILIES.reduce((acc, gpu) => acc + getLiveRevenue(gpu.id, activeMonth), 0);
       const aopNewDcRevMonth  = GPU_FAMILIES.reduce((acc, gpu) => acc + gpu.aop.revenue[activeMonth], 0);
-      const liveNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + MONTHS.reduce((s,_,i) => s + getLiveRevenue(gpu.id,i), 0), 0);
+      const liveNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + MONTHS.reduce((s,_,i) => s + getLiveRevenue(gpu.id, i), 0), 0);
       const aopNewDcQ2   = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.aop.revenue), 0);
       const planNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.mgmt.revenue), 0);
       const aimlAopQ2    = sum(AIML_TOTAL_AOP);
       const aimlMgmtQ2   = sum(AIML_TOTAL_MGMT);
-      const anyModified  = GPU_FAMILIES.some(gpu => MONTHS.some((_,i) => {
+
+      const anyModified = GPU_FAMILIES.some(gpu => MONTHS.some((_,i) => {
         const ts = tranches[gpu.id][i];
         return ts.length > 1 || ts[0].gpusSold !== gpu.mgmt.gpusSold[i] ||
           ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].gpusAvail !== gpu.mgmt.gpusAvail[i];
       }));
+      // hasPending: show orange Update button when GPU has edits vs plan
+      const hasPending = {};
+      GPU_FAMILIES.forEach(gpu => {
+        hasPending[gpu.id] = MONTHS.some((_, i) => {
+          const ts = tranches[gpu.id][i];
+          return ts.length > 1 || ts[0].gpusSold !== gpu.mgmt.gpusSold[i] ||
+            ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].gpusAvail !== gpu.mgmt.gpusAvail[i];
+        });
+      });
       const chartData = buildChartData(tranches);
 
       return (
@@ -476,13 +494,13 @@
           <div className="bg-white border-b border-gray-200 px-6 py-4">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Q2 2026 â AI/ML Pipeline Review</h1>
-                <p className="text-sm text-gray-500 mt-0.5">GPU Family Breakdown Â· Management vs. AOP Â· Tranche Scenarios</p>
+                <h1 className="text-xl font-bold text-gray-900">Q2 2026 — AI/ML Pipeline Review</h1>
+                <p className="text-sm text-gray-500 mt-0.5">GPU Family Breakdown · Management vs. AOP · Tranche Scenarios</p>
               </div>
               <div className="flex items-center gap-3">
                 {anyModified && (
                   <button onClick={resetAll} className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 transition-colors">
-                    âº Reset all to plan
+                    ↺ Reset all to plan
                   </button>
                 )}
                 <div className="flex flex-col items-end gap-0.5">
@@ -497,7 +515,7 @@
                   )}
                 </div>
                 <span className="text-xs bg-blue-50 text-blue-700 font-semibold px-3 py-1.5 rounded-full border border-blue-200">
-                  Apr Â· May Â· Jun 2026
+                  Apr · May · Jun 2026
                 </span>
               </div>
             </div>
@@ -506,13 +524,13 @@
           <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
             {/* KPIs */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <KpiCard label="AI/ML Q2 Â· Mgmt Plan" value={fmt$(aimlMgmtQ2)} sub={`@OP: ${fmt$(aimlAopQ2)}`} />
-              <KpiCard label="AI/ML Q2 Â· Variance" value={`+${fmt$(aimlMgmtQ2-aimlAopQ2)}`}
+              <KpiCard label="AI/ML Q2 · Mgmt Plan" value={fmt$(aimlMgmtQ2)} sub={`AOP: ${fmt$(aimlAopQ2)}`} />
+              <KpiCard label="AI/ML Q2 · Variance" value={`+${fmt$(aimlMgmtQ2-aimlAopQ2)}`}
                 sub={`+${(((aimlMgmtQ2-aimlAopQ2)/aimlAopQ2)*100).toFixed(0)}% vs AOP`} accent="text-emerald-600" />
               <KpiCard
-                label={anyModified ? "New DC Revenue Â· Live Q2" : "New DC Revenue Â· Plan Q2"}
+                label={anyModified ? "New DC Revenue · Live Q2" : "New DC Revenue · Plan Q2"}
                 value={fmt$(liveNewDcQ2)}
-                sub={anyModified ? `Plan ${fmt$(planNewDcQ2)} Â· AOP ${fmt$(aopNewDcQ2)}` : `AOP was ${fmt$(aopNewDcQ2)}`}
+                sub={anyModified ? `Plan ${fmt$(planNewDcQ2)} · AOP ${fmt$(aopNewDcQ2)}` : `AOP was ${fmt$(aopNewDcQ2)}`}
                 accent={anyModified && liveNewDcQ2 !== planNewDcQ2 ? "text-amber-600" : undefined}
               />
               <KpiCard
@@ -526,10 +544,10 @@
             {/* Chart */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <div className="mb-4">
-                <h2 className="text-sm font-bold text-gray-800">Revenue by GPU Family Â· April â June</h2>
+                <h2 className="text-sm font-bold text-gray-800">Revenue by GPU Family · April – June</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  $M Â· New DC deployments Â· Tranches aggregated
-                  {anyModified && <span className="ml-2 text-amber-500 font-semibold">Â· showing live scenario</span>}
+                  $M · New DC deployments · Tranches aggregated
+                  {anyModified && <span className="ml-2 text-amber-500 font-semibold">· showing live scenario</span>}
                 </p>
               </div>
               <SimpleBarChart data={chartData} anyModified={anyModified} />
@@ -585,13 +603,16 @@
                     onUpdateTranche={updateTranche}
                     onRemoveTranche={removeTranche}
                     onResetTranches={resetTranches}
+                    onUpdateGpu={updateGpu}
+                    gpuLastUpdated={gpuLastUpdated[gpu.id]}
+                    gpuHasPending={hasPending[gpu.id]}
                   />
                 ))}
               </div>
             </div>
 
             <p className="text-xs text-gray-400 text-center pb-4">
-              DigitalOcean Internal Â· AI/ML Targets 2026 Â· Revenue = GPUs Sold Ã $/hr Ã Hours in Month Â· Figures in $M
+              DigitalOcean Internal · AI/ML Targets 2026 · Revenue = GPUs Sold × $/hr × Hours in Month · Figures in $M
             </p>
           </div>
         </div>
