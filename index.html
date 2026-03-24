@@ -21,10 +21,19 @@
 
     // ─── Constants ──────────────────────────────────────────────────────────
     const MONTHS = ["April", "May", "June"];
-    const HOURS_IN_MONTH = [720, 744, 720];
+    const MONTH_STARTS = ["2026-04-01", "2026-05-01", "2026-06-01"];
+    const Q2_END = new Date("2026-07-01"); // exclusive end of Q2
 
-    const calcRevenue = (gpusSold, pricePerHour, monthIndex) =>
-      (gpusSold * pricePerHour * HOURS_IN_MONTH[monthIndex]) / 1_000_000;
+    const daysLeftInQ2 = (billingStartDate) => {
+      if (!billingStartDate) return 0;
+      return Math.max(0, Math.ceil((Q2_END - new Date(billingStartDate)) / 86400000));
+    };
+
+    const calcRevenue = (gpusSold, utilization, pricePerHour, billingStartDate) => {
+      if (!billingStartDate || !gpusSold) return 0;
+      const days = daysLeftInQ2(billingStartDate);
+      return (gpusSold * (utilization / 100) * pricePerHour * days * 24) / 1_000_000;
+    };
 
     let _trancheCounter = 0;
     const newId = () => `t-${++_trancheCounter}`;
@@ -58,23 +67,23 @@
     ];
 
     GPU_FAMILIES.forEach(gpu => {
-      gpu.aop.revenue  = MONTHS.map((_,i) => calcRevenue(gpu.aop.gpusSold[i],  gpu.aop.pricePerHour[i],  i));
-      gpu.mgmt.revenue = MONTHS.map((_,i) => calcRevenue(gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i], i));
+      gpu.aop.revenue  = MONTHS.map((_,i) => calcRevenue(gpu.aop.gpusSold[i],  100, gpu.aop.pricePerHour[i],  MONTH_STARTS[i]));
+      gpu.mgmt.revenue = MONTHS.map((_,i) => calcRevenue(gpu.mgmt.gpusSold[i], 100, gpu.mgmt.pricePerHour[i], MONTH_STARTS[i]));
     });
 
     const AIML_TOTAL_AOP  = [10.4, 12.8, 14.6];
     const AIML_TOTAL_MGMT = [12.8, 15.4, 15.5];
 
     // ─── Tranche helpers ────────────────────────────────────────────────────
-    const makeTranche = (label, gpusAvail, gpusSold, pricePerHour) =>
-      ({ id: newId(), label, gpusAvail, gpusSold, pricePerHour });
+    const makeTranche = (label, gpusSold, pricePerHour, billingStartDate, utilization = 98) =>
+      ({ id: newId(), label, gpusSold, pricePerHour, billingStartDate, utilization });
 
     const initTranches = () => {
       const out = {};
       GPU_FAMILIES.forEach(gpu => {
         out[gpu.id] = {};
         MONTHS.forEach((_,i) => {
-          out[gpu.id][i] = [makeTranche("Plan", gpu.mgmt.gpusAvail[i], gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i])];
+          out[gpu.id][i] = [makeTranche("Plan", gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i], MONTH_STARTS[i])];
         });
       });
       return out;
@@ -131,16 +140,14 @@
     }
 
     // ─── TrancheRow ─────────────────────────────────────────────────────────
-    function TrancheRow({ tranche, monthIndex, aopGpu, planGpu, onUpdate, onRemove, canRemove, color, index, maxGpusAvail, maxGpusSold }) {
-      const revenue = calcRevenue(tranche.gpusSold, tranche.pricePerHour, monthIndex);
-      const derivedUtil = tranche.gpusAvail > 0
-        ? Math.min(100, Math.round((tranche.gpusSold / tranche.gpusAvail) * 100))
-        : 0;
+    function TrancheRow({ tranche, monthIndex, aopGpu, planGpu, onUpdate, onRemove, canRemove, color, index, maxGpusSold }) {
+      const revenue = calcRevenue(tranche.gpusSold, tranche.utilization, tranche.pricePerHour, tranche.billingStartDate);
+      const days = daysLeftInQ2(tranche.billingStartDate);
       const isModified =
         tranche.label !== "Plan" ||
         tranche.gpusSold !== planGpu.gpusSold[monthIndex] ||
         tranche.pricePerHour !== planGpu.pricePerHour[monthIndex] ||
-        tranche.gpusAvail !== planGpu.gpusAvail[monthIndex];
+        tranche.utilization !== 98;
 
       const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -182,20 +189,20 @@
               )}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {/* GPUs Available */}
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-gray-400">GPUs Avail</span>
-              <NumInput value={tranche.gpusAvail} onChange={v => onUpdate("gpusAvail", Math.round(v))} step={1}
-                max={maxGpusAvail} isModified={tranche.gpusAvail !== planGpu.gpusAvail[monthIndex]} />
-              <span className="text-xs text-gray-300">AOP: {aopGpu.gpusAvail[monthIndex].toLocaleString()}</span>
-            </div>
+          <div className="grid grid-cols-3 gap-2 mb-2">
             {/* GPUs Sold */}
             <div className="flex flex-col gap-1">
               <span className="text-xs text-gray-400">GPUs Sold</span>
               <NumInput value={tranche.gpusSold} onChange={v => onUpdate("gpusSold", Math.round(v))} step={1}
                 max={maxGpusSold} isModified={tranche.gpusSold !== planGpu.gpusSold[monthIndex]} />
-              <span className="text-xs text-gray-300">{fmtPct(derivedUtil)} util · AOP: {aopGpu.gpusSold[monthIndex].toLocaleString()}</span>
+              <span className="text-xs text-gray-300">AOP: {aopGpu.gpusSold[monthIndex].toLocaleString()}</span>
+            </div>
+            {/* % Utilization */}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-400">% Util</span>
+              <NumInput value={tranche.utilization} onChange={v => onUpdate("utilization", Math.min(100, Math.max(0, v)))} step={1} min={0} max={100}
+                isModified={tranche.utilization !== 98} />
+              <span className="text-xs text-gray-300">{days}d left in Q2</span>
             </div>
             {/* Price / Hour */}
             <div className="flex flex-col gap-1">
@@ -208,6 +215,20 @@
               <span className="text-xs text-gray-300">AOP: ${aopGpu.pricePerHour[monthIndex].toFixed(1)}</span>
             </div>
           </div>
+          {/* Billing Start Date */}
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-gray-400">Billing Start Date</span>
+            <input
+              type="date"
+              value={tranche.billingStartDate || ""}
+              min="2026-04-01"
+              max="2026-06-30"
+              onChange={e => onUpdate("billingStartDate", e.target.value)}
+              className={`w-full text-xs font-mono font-semibold rounded-md px-2 py-1 border focus:outline-none focus:ring-2 focus:ring-blue-300 transition-colors ${
+                tranche.billingStartDate !== MONTH_STARTS[monthIndex] ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-blue-50 border-blue-200 text-blue-800"
+              }`}
+            />
+          </div>
         </div>
       );
     }
@@ -215,24 +236,21 @@
     // ─── GpuFamilyCard ──────────────────────────────────────────────────────
     function GpuFamilyCard({ gpu, monthIndex, tranches, onAddTranche, onUpdateTranche, onRemoveTranche, onResetTranches, onUpdateGpu, gpuLastUpdated, gpuHasPending }) {
       const monthTranches = tranches[gpu.id][monthIndex];
-      const liveRevenue   = sum(monthTranches.map(t => calcRevenue(t.gpusSold, t.pricePerHour, monthIndex)));
+      const liveRevenue   = sum(monthTranches.map(t => calcRevenue(t.gpusSold, t.utilization, t.pricePerHour, t.billingStartDate)));
       const aopRevenue    = gpu.aop.revenue[monthIndex];
       const planRevenue   = gpu.mgmt.revenue[monthIndex];
       const revenueVsAop  = liveRevenue - aopRevenue;
       const liveGpusSold  = sum(monthTranches.map(t => t.gpusSold));
-      const liveGpusAvail = sum(monthTranches.map(t => t.gpusAvail));
-      const derivedUtil   = liveGpusAvail > 0 ? Math.round((liveGpusSold / liveGpusAvail) * 100) : 0;
       const cap = gpu.inventoryCap;
       const inventoryLeft = cap > 0 ? cap - liveGpusSold : null;
       const inventoryOverCap = cap > 0 && liveGpusSold > cap;
-      const availOverCap = cap > 0 && liveGpusAvail > cap;
       const isMultiTranche = monthTranches.length > 1;
       const isModified = isMultiTranche || monthTranches.some(t =>
         t.gpusSold !== gpu.mgmt.gpusSold[monthIndex] ||
         t.pricePerHour !== gpu.mgmt.pricePerHour[monthIndex] ||
-        t.gpusAvail !== gpu.mgmt.gpusAvail[monthIndex]
+        t.utilization !== 98
       );
-      const planIsZero = gpu.mgmt.gpusSold[monthIndex] === 0 && gpu.mgmt.gpusAvail[monthIndex] === 0;
+      const planIsZero = gpu.mgmt.gpusSold[monthIndex] === 0;
       const liveIsZero = liveRevenue === 0 && !isModified;
 
       return (
@@ -292,7 +310,7 @@
                   {revenueVsAop >= 0 ? "+" : ""}{fmt$(revenueVsAop)} vs AOP
                 </span>
                 {isMultiTranche && (
-                  <span className="text-gray-400">· {liveGpusSold.toLocaleString()} GPUs · {fmtPct(derivedUtil)} util (agg)</span>
+                  <span className="text-gray-400">· {liveGpusSold.toLocaleString()} GPUs sold (agg)</span>
                 )}
               </div>
               {inventoryLeft !== null && (
@@ -312,8 +330,7 @@
             ) : (
               <div className="space-y-2">
                 {monthTranches.map((tranche, idx) => {
-                  const otherSold  = cap > 0 ? sum(monthTranches.filter((_, i) => i !== idx).map(t => t.gpusSold))  : undefined;
-                  const otherAvail = cap > 0 ? sum(monthTranches.filter((_, i) => i !== idx).map(t => t.gpusAvail)) : undefined;
+                  const otherSold = cap > 0 ? sum(monthTranches.filter((_, i) => i !== idx).map(t => t.gpusSold)) : undefined;
                   return (
                     <TrancheRow
                       key={tranche.id}
@@ -327,7 +344,6 @@
                       color={gpu.color}
                       index={idx}
                       maxGpusSold={cap > 0 ? cap - otherSold : undefined}
-                      maxGpusAvail={cap > 0 ? cap - otherAvail : undefined}
                     />
                   );
                 })}
@@ -420,7 +436,7 @@
         const entry = { month };
         GPU_FAMILIES.forEach(gpu => {
           entry[`${gpu.id}_aop`]  = parseFloat(gpu.aop.revenue[i].toFixed(2));
-          entry[`${gpu.id}_live`] = parseFloat(sum(tranches[gpu.id][i].map(t => calcRevenue(t.gpusSold, t.pricePerHour, i))).toFixed(2));
+          entry[`${gpu.id}_live`] = parseFloat(sum(tranches[gpu.id][i].map(t => calcRevenue(t.gpusSold, t.utilization, t.pricePerHour, t.billingStartDate))).toFixed(2));
         });
         return entry;
       });
@@ -439,7 +455,7 @@
           ...prev,
           [gpuId]: {
             ...prev[gpuId],
-            [monthIndex]: [...prev[gpuId][monthIndex], makeTranche(`Tranche ${prev[gpuId][monthIndex].length + 1}`, 0, 0, gpu.mgmt.pricePerHour[monthIndex])],
+            [monthIndex]: [...prev[gpuId][monthIndex], makeTranche(`Tranche ${prev[gpuId][monthIndex].length + 1}`, 0, gpu.mgmt.pricePerHour[monthIndex], MONTH_STARTS[monthIndex])],
           },
         }));
       }, []);
@@ -464,7 +480,7 @@
 
       const resetTranches = useCallback((gpuId, monthIndex) => {
         const gpu = GPU_FAMILIES.find(g => g.id === gpuId);
-        const planTranche = makeTranche("Plan", gpu.mgmt.gpusAvail[monthIndex], gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex]);
+        const planTranche = makeTranche("Plan", gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex], MONTH_STARTS[monthIndex]);
         setTranches(prev => ({ ...prev, [gpuId]: { ...prev[gpuId], [monthIndex]: [planTranche] } }));
       }, []);
 
@@ -482,7 +498,7 @@
 
       // All KPIs compute live from tranches — always current, no commit step needed
       const getLiveRevenue = (gpuId, monthIndex) =>
-        sum(tranches[gpuId][monthIndex].map(t => calcRevenue(t.gpusSold, t.pricePerHour, monthIndex)));
+        sum(tranches[gpuId][monthIndex].map(t => calcRevenue(t.gpusSold, t.utilization, t.pricePerHour, t.billingStartDate)));
 
       const liveNewDcRevMonth = GPU_FAMILIES.reduce((acc, gpu) => acc + getLiveRevenue(gpu.id, activeMonth), 0);
       const aopNewDcRevMonth  = GPU_FAMILIES.reduce((acc, gpu) => acc + gpu.aop.revenue[activeMonth], 0);
@@ -491,11 +507,13 @@
       const planNewDcQ2  = GPU_FAMILIES.reduce((acc, gpu) => acc + sum(gpu.mgmt.revenue), 0);
       const aimlAopQ2    = sum(AIML_TOTAL_AOP);
       const aimlMgmtQ2   = sum(AIML_TOTAL_MGMT);
+      // AI/ML Q2 Revenue = GPU new DC revenue + rest of AI/ML (AIML_TOTAL_MGMT minus new DC plan)
+      const aimlQ2LiveRevenue = liveNewDcQ2 + (aimlMgmtQ2 - planNewDcQ2);
 
       const anyModified = GPU_FAMILIES.some(gpu => MONTHS.some((_,i) => {
         const ts = tranches[gpu.id][i];
         return ts.length > 1 || ts[0].gpusSold !== gpu.mgmt.gpusSold[i] ||
-          ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].gpusAvail !== gpu.mgmt.gpusAvail[i];
+          ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].utilization !== 98;
       }));
       // hasPending: show orange Update button when GPU has edits vs plan
       const hasPending = {};
@@ -503,7 +521,7 @@
         hasPending[gpu.id] = MONTHS.some((_, i) => {
           const ts = tranches[gpu.id][i];
           return ts.length > 1 || ts[0].gpusSold !== gpu.mgmt.gpusSold[i] ||
-            ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].gpusAvail !== gpu.mgmt.gpusAvail[i];
+            ts[0].pricePerHour !== gpu.mgmt.pricePerHour[i] || ts[0].utilization !== 98;
         });
       });
       const chartData = buildChartData(tranches);
@@ -544,9 +562,11 @@
           <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
             {/* KPIs */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <KpiCard label="AI/ML Q2 · Mgmt Plan" value={fmt$(aimlMgmtQ2)} sub={`AOP: ${fmt$(aimlAopQ2)}`} />
-              <KpiCard label="AI/ML Q2 · Variance" value={`+${fmt$(aimlMgmtQ2-aimlAopQ2)}`}
-                sub={`+${(((aimlMgmtQ2-aimlAopQ2)/aimlAopQ2)*100).toFixed(0)}% vs AOP`} accent="text-emerald-600" />
+              <KpiCard label="AI/ML Q2 · Revenue" value={fmt$(aimlQ2LiveRevenue)}
+                sub={`Plan: ${fmt$(aimlMgmtQ2)} · AOP: ${fmt$(aimlAopQ2)}`}
+                accent={anyModified && aimlQ2LiveRevenue !== aimlMgmtQ2 ? "text-amber-600" : "text-blue-600"} />
+              <KpiCard label="AI/ML Q2 · Variance vs AOP" value={`${aimlQ2LiveRevenue-aimlAopQ2>=0?"+":""}${fmt$(aimlQ2LiveRevenue-aimlAopQ2)}`}
+                sub={`${(((aimlQ2LiveRevenue-aimlAopQ2)/aimlAopQ2)*100).toFixed(0)}% vs AOP`} accent={varColor(aimlQ2LiveRevenue-aimlAopQ2)} />
               <KpiCard
                 label={anyModified ? "New DC Revenue · Live Q2" : "New DC Revenue · Plan Q2"}
                 value={fmt$(liveNewDcQ2)}
@@ -554,9 +574,9 @@
                 accent={anyModified && liveNewDcQ2 !== planNewDcQ2 ? "text-amber-600" : undefined}
               />
               <KpiCard
-                label="New DC Uplift vs AOP"
+                label="New DC · Variance vs AOP"
                 value={`${liveNewDcQ2-aopNewDcQ2>=0?"+":""}${fmt$(liveNewDcQ2-aopNewDcQ2)}`}
-                sub={aopNewDcQ2>0 ? `${(((liveNewDcQ2-aopNewDcQ2)/aopNewDcQ2)*100).toFixed(0)}% above AOP` : "vs AOP"}
+                sub={aopNewDcQ2>0 ? `${(((liveNewDcQ2-aopNewDcQ2)/aopNewDcQ2)*100).toFixed(0)}% vs AOP` : "vs AOP"}
                 accent={varColor(liveNewDcQ2-aopNewDcQ2)}
               />
             </div>
