@@ -59,6 +59,12 @@
         mgmt: { gpusAvail:[1536,1536,1536], gpusSold:[461,998,1382],  utilization:[30,65,90], pricePerHour:[2.0,2.0,2.0] },
       },
       {
+        id: "mi350-atl", name: "AMD MI350", badge: "ATL",
+        location: "ATL", color: "#7c3aed", inventoryCap: 1024, defaultUtil: 92,
+        aop:  { gpusAvail:[0,0,0],          gpusSold:[0,0,0],          utilization:[0,0,0],       pricePerHour:[2.35,2.35,2.35] },
+        mgmt: { gpusAvail:[1024,1024,1024], gpusSold:[1024,1024,1024], utilization:[92,92,92],    pricePerHour:[2.35,2.35,2.35] },
+      },
+      {
         id: "mi350-plus", name: "AMD MI350+", badge: null,
         location: "MEM (5C)", color: "#f5a623", inventoryCap: 0,
         aop:  { gpusAvail:[0,0,0], gpusSold:[0,0,0], utilization:[0,0,0], pricePerHour:[2.2,2.2,2.2] },
@@ -83,7 +89,7 @@
       GPU_FAMILIES.forEach(gpu => {
         out[gpu.id] = {};
         MONTHS.forEach((_,i) => {
-          out[gpu.id][i] = [makeTranche("Plan", gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i], MONTH_STARTS[i])];
+          out[gpu.id][i] = [makeTranche("Plan", gpu.mgmt.gpusSold[i], gpu.mgmt.pricePerHour[i], MONTH_STARTS[i], gpu.defaultUtil || 98)];
         });
       });
       return out;
@@ -455,7 +461,7 @@
           ...prev,
           [gpuId]: {
             ...prev[gpuId],
-            [monthIndex]: [...prev[gpuId][monthIndex], makeTranche(`Tranche ${prev[gpuId][monthIndex].length + 1}`, 0, gpu.mgmt.pricePerHour[monthIndex], MONTH_STARTS[monthIndex])],
+            [monthIndex]: [...prev[gpuId][monthIndex], makeTranche(`Tranche ${prev[gpuId][monthIndex].length + 1}`, 0, gpu.mgmt.pricePerHour[monthIndex], MONTH_STARTS[monthIndex], gpu.defaultUtil || 98)],
           },
         }));
       }, []);
@@ -480,7 +486,7 @@
 
       const resetTranches = useCallback((gpuId, monthIndex) => {
         const gpu = GPU_FAMILIES.find(g => g.id === gpuId);
-        const planTranche = makeTranche("Plan", gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex], MONTH_STARTS[monthIndex]);
+        const planTranche = makeTranche("Plan", gpu.mgmt.gpusSold[monthIndex], gpu.mgmt.pricePerHour[monthIndex], MONTH_STARTS[monthIndex], gpu.defaultUtil || 98);
         setTranches(prev => ({ ...prev, [gpuId]: { ...prev[gpuId], [monthIndex]: [planTranche] } }));
       }, []);
 
